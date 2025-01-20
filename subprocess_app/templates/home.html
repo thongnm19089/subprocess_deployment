@@ -1,4 +1,3 @@
-<!-- filepath: subprocess_app/templates/home.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,9 +13,13 @@
     <script>
         document.getElementById('git-pull-btn').addEventListener('click', function() {
             fetch('/git-pull/')
-                .then(response => response.text())
+                .then(response => response.json())
                 .then(data => {
-                    document.getElementById('log-output').textContent = data;
+                    if (data.status === 'success') {
+                        document.getElementById('log-output').textContent = data.message;
+                    } else {
+                        document.getElementById('log-output').textContent = 'Infor: ' + data.message;
+                    }
                 })
                 .catch(error => {
                     document.getElementById('log-output').textContent = 'Error: ' + error;
