@@ -1,0 +1,27 @@
+<!-- filepath: subprocess_app/templates/home.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Page</title>
+</head>
+<body>
+    <h1>Welcome to deployment with subprocess!</h1>
+    <button id="git-pull-btn">Git Pull</button>
+    <pre id="log-output"></pre>
+
+    <script>
+        document.getElementById('git-pull-btn').addEventListener('click', function() {
+            fetch('/git-pull/')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('log-output').textContent = data;
+                })
+                .catch(error => {
+                    document.getElementById('log-output').textContent = 'Error: ' + error;
+                });
+        });
+    </script>
+</body>
+</html>
