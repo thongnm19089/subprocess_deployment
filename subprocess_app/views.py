@@ -30,7 +30,7 @@ def git_pull(request):
 
         # Execute git pull command
         logger.info("Running git pull...")
-        stdin, stdout, stderr = ssh.exec_command(f'cd {git_repo_path} && git pull')
+        stdin, stdout, stderr = ssh.exec_command(f'cd {git_repo_path} && git status')
         git_output = stdout.read().decode('utf-8')
         git_error = stderr.read().decode('utf-8')
 
