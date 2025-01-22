@@ -6,8 +6,9 @@ from dotenv import load_dotenv
 import os
 import logging
 from django.http import JsonResponse
-
-# Load environment variables from .env file
+from django.shortcuts import render, redirect
+from .models import Deployment, Server
+from django.contrib import messages# Load environment variables from .env file
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -66,3 +67,35 @@ def git_pull(request):
 
 def home(request):
     return render(request, 'home.html')
+
+def manage(request):
+    if request.method == 'POST':
+        project_name = request.POST.get('project_name')
+        project_path = request.POST.get('project_path')
+        service_name = request.POST.get('service_name')
+        status = request.POST.get('status')
+        server_id = request.POST.get('server')
+
+        if server_id:
+            try:
+                server = Server.objects.get(id=server_id)
+            except Server.DoesNotExist:
+                server = None
+        else:
+            server = None
+
+
+        deployment = Deployment(
+            project_name=project_name,
+            project_path=project_path,
+            service_name=service_name,
+            status=status,
+            server=server,
+        )
+        deployment.save()
+        messages.success(request, 'Deployment added successfully!')
+        return redirect('manage')
+    
+    servers = Server.objects.all()
+    deployments = Deployment.objects.all()
+    return render(request, 'management.html', {'servers': servers, 'deployments': deployments})

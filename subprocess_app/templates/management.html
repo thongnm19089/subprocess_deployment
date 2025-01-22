@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Deployments</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Manage Deployments</h2>
+        
+        <!-- Flash Messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Add New Deployment Form -->
+        <div class="card mb-4">
+            <div class="card-header">Add New Deployment</div>
+            <div class="card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Project Name</label>
+                        <input type="text" class="form-control" name="project_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Project Path</label>
+                        <input type="text" class="form-control" name="project_path" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Service Name</label>
+                        <input type="text" class="form-control" name="service_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" name="status">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Server</label>
+                        <select class="form-control" name="server">
+                            <option value="">Select a server (optional)</option>
+                            {% if servers %}
+                                {% for server in servers %}
+                                    <option value="{{ server.id }}">{{ server.server_name }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="">No servers available</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Deployment</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Deployments Table -->
+        <div class="card">
+            <div class="card-header">Current Deployments</div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Project Name</th>
+                            <th>Path</th>
+                            <th>Service</th>
+                            <th>Status</th>
+                            <th>Server</th>
+                            <th>Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for deployment in deployments %}
+                        <tr>
+                            <td>{{ deployment.project_name }}</td>
+                            <td>{{ deployment.project_path }}</td>
+                            <td>{{ deployment.service_name }}</td>
+                            <td>{{ deployment.status }}</td>
+                            <td>
+                                {% if deployment.server %}
+                                    {{ deployment.server.server_name }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>{{ deployment.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
