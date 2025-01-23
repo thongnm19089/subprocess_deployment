@@ -13,6 +13,6 @@ else:
     PRODUCTION = False
 
 if PRODUCTION:
-    from .prod import *
+    from .pro import *
 else:
     from .dev import *

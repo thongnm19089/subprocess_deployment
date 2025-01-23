@@ -182,7 +182,6 @@ def execute_ssh_command(ssh, command, need_sudo=False, password=None):
     return output, error
 
 
-
 def deploy(request, id):
     deployment = Deployment.objects.get(id=id)
     server = deployment.server
