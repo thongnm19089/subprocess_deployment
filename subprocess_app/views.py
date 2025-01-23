@@ -12,7 +12,7 @@ from django.contrib import messages# Load environment variables from .env file
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+import subprocess
 def git_pull(request):
     ssh_host = os.getenv('SSH_HOST')
     ssh_port = int(os.getenv('SSH_PORT'))
@@ -143,40 +143,125 @@ def delete_deployment(request, id):
             return JsonResponse({'status': 'error', 'message': 'Deployment not found'})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-def deploy(request , id):
+def execute_ssh_command(ssh, command, need_sudo=False, password=None):
+    if need_sudo:
+        if not password:
+            raise ValueError("Password is required for sudo command.")
+        command = f"sudo -S {command}"
+
+    # Thực thi lệnh qua SSH
+    stdin, stdout, stderr = ssh.exec_command(command)
+
+    # Gửi mật khẩu nếu cần sudo
+    if need_sudo and password:
+        stdin.write(password + '\n')
+        stdin.flush()
+
+    # Đọc đầu ra từ stdout và stderr
+    output = ""
+    error = ""
+
+    # Kiểm tra luồng dữ liệu để đảm bảo xử lý đúng thời điểm
+    while not stdout.channel.exit_status_ready():
+        if stdout.channel.recv_ready():
+            output += stdout.read(1024).decode('utf-8')
+        if stderr.channel.recv_stderr_ready():
+            error += stderr.read(1024).decode('utf-8')
+
+        # Phát hiện yêu cầu mật khẩu từ sudo và gửi lại
+        if "[sudo]" in error and "password" in error:
+            stdin.write(password + '\n')
+            stdin.flush()
+            error = ""  # Xóa thông báo cũ sau khi gửi mật khẩu
+
+    # Đọc toàn bộ phần còn lại
+    output += stdout.read().decode('utf-8')
+    error += stderr.read().decode('utf-8')
+
+    # Trả về đầu ra và lỗi
+    return output, error
+
+
+
+def deploy(request, id):
     deployment = Deployment.objects.get(id=id)
     server = deployment.server
+    messages = []
+
     if server:
-        ssh_host = server.server_ip
-        ssh_port = 22
-        ssh_user = server.user
-        ssh_password = server.password
-        print(f"ssh_host: {ssh_host} \n ssh_port: {ssh_port} \n ssh_user: {ssh_user} \n ssh_password: {ssh_password}")
         try:
+            # SSH Connection
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ssh_host, port=ssh_port, username=ssh_user, password=ssh_password)
-            logger.info("Connected to server successfully.")
-            connect_message = "Connected to server successfully."
-            
+            ssh.connect(
+                server.server_ip, 
+                port=22, 
+                username=server.user, 
+                password=server.password
+            )
+            logger.info("Connected to server successfully")
+            messages.append("Connected to server successfully")
 
-            stdin, stdout, stderr = ssh.exec_command(f'cd {deployment.project_path} && git status')
-            git_output = stdout.read().decode('utf-8')
-            git_error = stderr.read().decode('utf-8')
-
+            # Git Pull
+            git_output, git_error = execute_ssh_command(
+                ssh, 
+                f'cd {deployment.project_path} && git pull'
+            )
             if git_error:
-                ssh.close()
-                git_message = f"Git pull faill:\n{git_error}"
-                return JsonResponse({'status': 'error', 'message': f"{connect_message}\nGit pull failed:\n{git_error}"})
-            git_message = f"Git pull successful:\n{git_output}"
+                raise Exception(f"Git pull failed: {git_error}")
+            messages.append(f"Git pull successful:\n{git_output}")
 
-            ssh.close()
+            # Service Restart
+            service_output, service_error = execute_ssh_command(
+                ssh, 
+                f'systemctl restart {deployment.service_name}',
+                need_sudo=True,
+                password=server.password
+            )
+            if service_error:
+                raise Exception(f"Service restart failed: {service_error}")
+            messages.append(f"Service restart initiated")
 
-            return JsonResponse({'status': 'success', 'message': f"{connect_message}\n{git_message}"})
+            # Check Service Status
+            status_output, status_error = execute_ssh_command(
+                ssh, 
+                f'systemctl status {deployment.service_name}',
+                need_sudo=True,
+                password=server.password
+            )
+            if 'active (running)' not in status_output:
+                raise Exception("Service not running properly after restart")
+            messages.append(f"Service {deployment.service_name} running successfully")
+
         except Exception as e:
-            logger.error(f"SSH connection failed: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': f"SSH connection failed:\n{str(e)}"})
+            logger.error(f"Deployment failed: {str(e)}")
+            return JsonResponse({
+                'status': 'error',
+                'message': f"{messages}\nError: {str(e)}"
+            })
+        finally:
+            if 'ssh' in locals():
+                ssh.close()
+
+        return JsonResponse({
+            'status': 'success',
+            'message': '\n'.join(messages)
+        })
     else:
-        connect_message = "Server not found"
-        status_git = "Server"
-        return JsonResponse({'status': 'success', 'message': f"{connect_message}\n{status_git}"})
+        # Local deployment
+        try:
+            subprocess.run(['git', 'pull'], cwd=deployment.project_path, check=True)
+            messages.append("Local git pull successful")
+            
+            subprocess.run(['systemctl', 'restart', deployment.service_name], check=True)
+            messages.append(f"Local service {deployment.service_name} restarted")
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '\n'.join(messages)
+            })
+        except subprocess.CalledProcessError as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f"Local deployment failed: {str(e)}"
+            })
