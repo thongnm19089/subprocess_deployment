@@ -67,7 +67,40 @@ def git_pull(request):
 
 def home(request):
     return render(request, 'home.html')
+def get_deployment(request, id):
+    deployment = Deployment.objects.get(id=id)
+    return JsonResponse({
+        'id': deployment.id,
+        'project_name': deployment.project_name,
+        'project_path': deployment.project_path,
+        'service_name': deployment.service_name,
+        'status': deployment.status,
+        'server': deployment.server.id if deployment.server else None,
+    })
 
+def update_deployment(request, id):
+    if request.method == 'POST':
+        deployment = Deployment.objects.get(id=id)
+        deployment.project_name = request.POST.get('project_name')
+        deployment.project_path = request.POST.get('project_path')
+        deployment.service_name = request.POST.get('service_name')
+        deployment.status = request.POST.get('status')
+        server_id = request.POST.get('server')
+        if server_id and server_id != 'none':
+            try:
+                server = Server.objects.get(id=server_id)
+                deployment.server = server
+            except Server.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Server not found'
+                })
+        else:
+            deployment.server = None
+
+        deployment.save()
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'})
 def manage(request):
     if request.method == 'POST':
         project_name = request.POST.get('project_name')
@@ -99,3 +132,51 @@ def manage(request):
     servers = Server.objects.all()
     deployments = Deployment.objects.all()
     return render(request, 'management.html', {'servers': servers, 'deployments': deployments})
+
+def delete_deployment(request, id):
+    if request.method == 'POST':
+        try:
+            deployment = Deployment.objects.get(id=id)
+            deployment.delete()
+            return JsonResponse({'status': 'success'})
+        except Deployment.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Deployment not found'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+def deploy(request , id):
+    deployment = Deployment.objects.get(id=id)
+    server = deployment.server
+    if server:
+        ssh_host = server.server_ip
+        ssh_port = 22
+        ssh_user = server.user
+        ssh_password = server.password
+        print(f"ssh_host: {ssh_host} \n ssh_port: {ssh_port} \n ssh_user: {ssh_user} \n ssh_password: {ssh_password}")
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(ssh_host, port=ssh_port, username=ssh_user, password=ssh_password)
+            logger.info("Connected to server successfully.")
+            connect_message = "Connected to server successfully."
+            
+
+            stdin, stdout, stderr = ssh.exec_command(f'cd {deployment.project_path} && git status')
+            git_output = stdout.read().decode('utf-8')
+            git_error = stderr.read().decode('utf-8')
+
+            if git_error:
+                ssh.close()
+                git_message = f"Git pull faill:\n{git_error}"
+                return JsonResponse({'status': 'error', 'message': f"{connect_message}\nGit pull failed:\n{git_error}"})
+            git_message = f"Git pull successful:\n{git_output}"
+
+            ssh.close()
+
+            return JsonResponse({'status': 'success', 'message': f"{connect_message}\n{git_message}"})
+        except Exception as e:
+            logger.error(f"SSH connection failed: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': f"SSH connection failed:\n{str(e)}"})
+    else:
+        connect_message = "Server not found"
+        status_git = "Server"
+        return JsonResponse({'status': 'success', 'message': f"{connect_message}\n{status_git}"})
