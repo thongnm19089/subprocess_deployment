@@ -292,11 +292,7 @@ def deploy(request, id):
             )
             logger.info("Connected to server successfully")
             messages.append("Connected to server successfully")
-            # Stash local changes trước khi pull
-            stash_output, stash_error = execute_ssh_command(
-                ssh, 
-                f'cd {deployment.project_path} && git stash'
-            )
+            
             messages.append("Local changes stashed")
             # Git Pull
             git_output, git_error = execute_ssh_command(
