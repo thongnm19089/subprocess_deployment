@@ -35,7 +35,7 @@ def git_webhook(request):
         if is_master_push(payload):
             # Lấy thông tin repository từ payload
             repo_name = get_repo_name(payload)
-            print(repo_name)
+            print("asvdhabsvdh",repo_name)
             # Tìm deployment tương ứng với repository
             try:
                 deployment = Deployment.objects.get(project_name=repo_name)
