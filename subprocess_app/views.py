@@ -349,7 +349,8 @@ def deploy(request, id):
                 # Kiểm tra xem có phải chỉ là warnings không
                 if "System check identified some issues:" in test_error and "ERROR:" not in test_error:
                     # Chỉ có warnings, vẫn cho phép tiếp tục
-                    messages.append("Django check completed with warnings")
+                    warning_message = "Django check completed with warnings:\n" + test_error
+                    messages.append(warning_message)
                     logger.warning(f"Django check warnings: {test_error}")
                 else:
                     # Có lỗi nghiêm trọng, dừng deployment
