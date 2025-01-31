@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import os
 import logging
 from django.http import JsonResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect ,get_object_or_404
 from .models import Deployment, Server ,GitLog
 from django.contrib import messages
 load_dotenv()
@@ -383,7 +383,14 @@ def deploy(request, id):
             'message': '\n'.join(messages)
         })
         
-def view_git_logs(request):
+def view_git_logs(request, deployment_id=None):
     """View để hiển thị logs"""
-    git_logs = cache.get('git_logs', [])
-    return render(request, 'git_logs.html', {'git_logs': git_logs})
+    deployment = get_object_or_404(Deployment, id=deployment_id)
+    git_logs = GitLog.objects.filter(deployment=deployment)
+    template_name = 'git_logs.html'
+   
+    
+    return render(request, template_name, {
+        'git_logs': git_logs,
+        'deployment': deployment if deployment_id else None
+    })

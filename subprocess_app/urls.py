@@ -12,5 +12,5 @@ urlpatterns = [
     path('cmd/', terminal_view, name='terminal'),
     path('git-webhook/', git_webhook, name='git-webhook'),
 
-    path('git-logs/', view_git_logs, name='git-logs'),
+    path('git-logs/<int:deployment_id>/', view_git_logs, name='deployment-git-logs'),
 ]   
