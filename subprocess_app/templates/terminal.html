@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: rgb(255, 255, 255);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #terminal {
+            background: black;
+            color: #00ff00;
+            padding: 10px;
+            font-family: monospace;
+            width: 1000px;
+            height: 700px;
+            overflow-y: scroll;
+            white-space: pre-wrap;
+            margin: 0;
+            position: relative;
+            border: 1px solid #00ff00;
+        }
+        /* Tùy chỉnh thanh cuộn */
+        #terminal::-webkit-scrollbar {
+            width: 10px;
+        }
+        #terminal::-webkit-scrollbar-track {
+            background: #000;
+        }
+        #terminal::-webkit-scrollbar-thumb {
+            background: #00ff00;
+            border-radius: 5px;
+        }
+        #command-line {
+            display: flex;
+            align-items: center;
+        }
+        #prompt {
+            color: #00ff00;
+            font-family: monospace;
+        }
+        #input {
+            flex-grow: 1;
+            background: black;
+            color: #00ff00;
+            border: none;
+            font-family: monospace;
+            outline: none;
+            padding: 0;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal">
+        <div id="output"></div>
+        <div id="command-line">
+            <span id="prompt"></span>
+            <input type="text" id="input" autofocus>
+        </div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const output = document.getElementById('output');
+        const input = document.getElementById('input');
+        const prompt = document.getElementById('prompt');
+        const ws = new WebSocket('ws://' + window.location.hostname + ':8001/ws/terminal/');
+        
+        let commandHistory = [];
+        let historyIndex = -1;
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    input.value = commandHistory[commandHistory.length - 1 - historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = commandHistory[commandHistory.length - 1 - historyIndex];
+                } else if (historyIndex === 0) {
+                    historyIndex = -1;
+                    input.value = '';
+                }
+            }
+        });
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const command = input.value;
+                if (command.trim()) {
+                    commandHistory.push(command);
+                }
+                historyIndex = -1;
+                output.innerHTML += prompt.textContent + command + '\n';
+                ws.send(JSON.stringify({command: command}));
+                input.value = '';
+            }
+        });
+
+        ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.output.endsWith('$ ')) {
+                const parts = data.output.split('\n');
+                if (parts.length > 1) {
+                    output.innerHTML += parts.slice(0, -1).join('\n') + '\n';
+                }
+                prompt.textContent = parts[parts.length - 1];
+            } else {
+                output.innerHTML += data.output;
+            }
+            terminal.scrollTop = terminal.scrollHeight;
+        };
+
+        window.onload = () => {
+            input.focus();
+        };
+
+        // Focus input when clicking anywhere in terminal
+        terminal.addEventListener('click', () => {
+            input.focus();
+        });
+    </script>
+</body>
+</html>
