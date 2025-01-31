@@ -179,8 +179,7 @@
 
                             </td>
                             <td>
-                                <a href="{% url 'deployment-git-logs' deployment.id %}" class="btn btn-info">View Git Logs</a>
-                            </td>
+                                <a href="{% url 'deployment-git-logs' deployment.id %}" class="btn btn-info btn-sm" data-turbo="false">View Logs</a>                            </td>
                             <td>
                                 <div class="dropdown">
                                     <h4  type="button" id="dropdownMenuButton{{ deployment.id }}" data-bs-toggle="dropdown" aria-expanded="false">

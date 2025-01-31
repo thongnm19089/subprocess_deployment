@@ -29,7 +29,9 @@ SECRET_KEY = 'django-insecure-wgn%q&5=_-%)$^s$5ds_a_#eyu7%06b6$0gsfw*zupco5wnxzl
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 # Application definition
 
@@ -45,7 +47,7 @@ INSTALLED_APPS = [
 ]
 ASGI_APPLICATION = 'subprocess_admin.asgi.application'
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
+    # 'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

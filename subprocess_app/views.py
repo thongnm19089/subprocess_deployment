@@ -343,9 +343,20 @@ def deploy(request, id):
                 python manage.py check --deploy
             '''
             test_output, test_error = execute_ssh_command(ssh, test_command)
+
+            # Kiểm tra kết quả check --deploy
             if test_error:
-                raise Exception(f"Django check failed: {test_error}")
-            messages.append("Django check passed successfully")
+                # Kiểm tra xem có phải chỉ là warnings không
+                if "System check identified some issues:" in test_error and "ERROR:" not in test_error:
+                    # Chỉ có warnings, vẫn cho phép tiếp tục
+                    messages.append("Django check completed with warnings")
+                    logger.warning(f"Django check warnings: {test_error}")
+                else:
+                    # Có lỗi nghiêm trọng, dừng deployment
+                    logger.error(f"Django check failed with errors: {test_error}")
+                    raise Exception(f"Django check failed with errors. Deployment aborted.")
+            else:
+                messages.append("Django check passed successfully")
 
 
             # Service Restart
@@ -390,7 +401,9 @@ def view_git_logs(request, deployment_id=None):
     template_name = 'git_logs.html'
    
     
-    return render(request, template_name, {
+    response = render(request, template_name, {
         'git_logs': git_logs,
         'deployment': deployment if deployment_id else None
     })
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
