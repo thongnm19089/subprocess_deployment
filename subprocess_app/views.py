@@ -236,42 +236,46 @@ def delete_deployment(request, id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 def execute_ssh_command(ssh, command, need_sudo=False, password=None):
-    if need_sudo:
-        if not password:
-            raise ValueError("Password is required for sudo command.")
-        command = f"sudo -S {command}"
+    """
+    Thực thi lệnh SSH và trả về output
+    """
+    try:
+        if need_sudo:
+            if not password:
+                raise ValueError("Password is required for sudo command.")
+            command = f"sudo -S {command}"
 
-    # Thực thi lệnh qua SSH
-    stdin, stdout, stderr = ssh.exec_command(command)
-
-    # Gửi mật khẩu nếu cần sudo
-    if need_sudo and password:
-        stdin.write(password + '\n')
-        stdin.flush()
-
-    # Đọc đầu ra từ stdout và stderr
-    output = ""
-    error = ""
-
-    # Kiểm tra luồng dữ liệu để đảm bảo xử lý đúng thời điểm
-    while not stdout.channel.exit_status_ready():
-        if stdout.channel.recv_ready():
-            output += stdout.read(1024).decode('utf-8')
-        if stderr.channel.recv_stderr_ready():
-            error += stderr.read(1024).decode('utf-8')
-
-        # Phát hiện yêu cầu mật khẩu từ sudo và gửi lại
-        if "[sudo]" in error and "password" in error:
+        # Thực thi lệnh
+        stdin, stdout, stderr = ssh.exec_command(command)
+        
+        # Gửi password nếu cần sudo
+        if need_sudo and password:
             stdin.write(password + '\n')
             stdin.flush()
-            error = ""  # Xóa thông báo cũ sau khi gửi mật khẩu
 
-    # Đọc toàn bộ phần còn lại
-    output += stdout.read().decode('utf-8')
-    error += stderr.read().decode('utf-8')
+        # Đọc output và error
+        output = stdout.read().decode('utf-8')
+        error = stderr.read().decode('utf-8')
 
-    # Trả về đầu ra và lỗi
-    return output, error
+        # Lấy exit status
+        exit_status = stdout.channel.recv_exit_status()
+
+        # Log để debug
+        logger.info(f"Command: {command}")
+        logger.info(f"Exit status: {exit_status}")
+        logger.info(f"Output: {output}")
+        logger.info(f"Error: {error}")
+
+        # Với git pull, stderr có thể chứa thông tin về pull progress
+        # nên chỉ raise exception nếu exit status không phải 0
+        if exit_status != 0:
+            raise Exception(f"Command failed with status {exit_status}: {error}")
+
+        return output, error
+
+    except Exception as e:
+        logger.error(f"SSH command execution failed: {str(e)}")
+        raise
 
 
 def deploy(request, id):
@@ -292,15 +296,15 @@ def deploy(request, id):
             )
             logger.info("Connected to server successfully")
             messages.append("Connected to server successfully")
+
+            # Git Pull với full command
+            git_command = f'''
+                cd {deployment.project_path} && \
+                git fetch origin && \
+                git reset --hard origin/main
+            '''
             
-            messages.append("Local changes stashed")
-            # Git Pull
-            git_output, git_error = execute_ssh_command(
-                ssh, 
-                f'cd {deployment.project_path}  && git pull'
-            )
-            if git_error:
-                raise Exception(f"Git pull failed: {git_error}")
+            git_output, git_error = execute_ssh_command(ssh, git_command)
             messages.append(f"Git pull successful:\n{git_output}")
 
             # Service Restart
@@ -310,8 +314,6 @@ def deploy(request, id):
                 need_sudo=True,
                 password=server.password
             )
-            if service_error:
-                raise Exception(f"Service restart failed: {service_error}")
             messages.append(f"Service restart initiated")
 
             # Check Service Status
@@ -339,24 +341,6 @@ def deploy(request, id):
             'status': 'success',
             'message': '\n'.join(messages)
         })
-    else:
-        # Local deployment
-        try:
-            subprocess.run(['git', 'pull'], cwd=deployment.project_path, check=True)
-            messages.append("Local git pull successful")
-            
-            subprocess.run(['systemctl', 'restart', deployment.service_name], check=True)
-            messages.append(f"Local service {deployment.service_name} restarted")
-            
-            return JsonResponse({
-                'status': 'success',
-                'message': '\n'.join(messages)
-            })
-        except subprocess.CalledProcessError as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f"Local deployment failed: {str(e)}"
-            })
         
 def view_git_logs(request):
     """View để hiển thị logs"""
