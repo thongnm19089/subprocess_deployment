@@ -75,7 +75,7 @@ def is_master_push(payload):
     try:
         # GitHub
         if 'ref' in payload:
-            return payload['ref'] == 'refs/heads/master'
+            return payload['ref'] == 'refs/heads/main'
         
         # GitLab
         if 'ref' in payload and 'default_branch' in payload['project']:
