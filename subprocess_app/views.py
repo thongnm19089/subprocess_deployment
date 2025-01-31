@@ -13,13 +13,30 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 import subprocess
 
+from django.core.cache import cache
 
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 import hmac
 import hashlib
+from django.core.cache import cache
+from datetime import datetime
 
+def store_git_log(payload, deployment_status=None, deployment_message=None):
+    """Lưu log vào cache"""
+    logs = cache.get('git_logs', [])
+    log_entry = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'repository': payload.get('repository'),
+        'ref': payload.get('ref'),
+        'commits': payload.get('commits', []),
+        'pusher': payload.get('pusher'),
+        'deployment_status': deployment_status,
+        'deployment_message': deployment_message
+    }
+    logs.insert(0, log_entry)  # Thêm log mới nhất lên đầu
+    cache.set('git_logs', logs[:100]) 
 @csrf_exempt
 @require_POST
 def git_webhook(request):
@@ -35,34 +52,50 @@ def git_webhook(request):
         if is_master_push(payload):
             # Lấy thông tin repository từ payload
             repo_name = get_repo_name(payload)
-            print("asvdhabsvdh",repo_name)
             # Tìm deployment tương ứng với repository
             try:
                 deployment = Deployment.objects.get(project_name=repo_name)
                 
                 # Thực hiện deploy
                 response = deploy(request, deployment.id)
-                
-                # Log kết quả
-                logger.info(f"Auto deployment triggered for {repo_name}")
+                response_data = json.loads(response.content.decode())
+
+                store_git_log(
+                    payload,
+                    deployment_status='success',
+                    deployment_message=response_data.get('message')
+                )
                 return JsonResponse({
                     'status': 'success',
                     'message': f'Deployment triggered for {repo_name}'
                 })
                 
             except Deployment.DoesNotExist:
+                store_git_log(
+                    payload,
+                    deployment_status='error',
+                    deployment_message=f'No deployment configuration found for {repo_name}'
+                )
                 return JsonResponse({
                     'status': 'error',
                     'message': f'No deployment configuration found for {repo_name}'
                 }, status=404)
-        
+        store_git_log(
+            payload,
+            deployment_status='ignored',
+            deployment_message='Not a master branch push event'
+        )
         return JsonResponse({
             'status': 'ignored',
             'message': 'Not a master branch push event'
         })
         
     except Exception as e:
-        logger.error(f"Webhook processing failed: {str(e)}")
+        store_git_log(
+            payload if 'payload' in locals() else {},
+            deployment_status='error',
+            deployment_message=str(e)
+        )
         return JsonResponse({
             'status': 'error',
             'message': str(e)
@@ -323,3 +356,8 @@ def deploy(request, id):
                 'status': 'error',
                 'message': f"Local deployment failed: {str(e)}"
             })
+        
+def view_git_logs(request):
+    """View để hiển thị logs"""
+    git_logs = cache.get('git_logs', [])
+    return render(request, 'git_logs.html', {'git_logs': git_logs})

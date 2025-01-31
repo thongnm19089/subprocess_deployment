@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Git Webhook Logs</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 20px 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .timestamp {
+            color: #888;
+        }
+        .commit-info {
+            margin-left: 20px;
+            color: #4CAF50;
+        }
+        .file-changes {
+            margin-left: 40px;
+        }
+        .added {
+            color: #4CAF50;
+        }
+        .modified {
+            color: #FFC107;
+        }
+        .removed {
+            color: #F44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Git Webhook Logs</h2>
+        <div class="log-container">
+            {% for log in git_logs %}
+            <div class="log-entry">
+                <div class="timestamp">{{ log.timestamp }}</div>
+                
+                {% if log.repository %}
+                <div>
+                    <strong>Repository:</strong> {{ log.repository.name }}
+                    <br>
+                    <strong>Branch:</strong> {{ log.ref }}
+                </div>
+                {% endif %}
+
+                {% if log.commits %}
+                {% for commit in log.commits %}
+                <div class="commit-info">
+                    <strong>Commit:</strong> {{ commit.id }}
+                    <br>
+                    <strong>Author:</strong> {{ commit.author.name }} &lt;{{ commit.author.email }}&gt;
+                    <br>
+                    <strong>Message:</strong> {{ commit.message }}
+                    
+                    <div class="file-changes">
+                        {% for file in commit.added %}
+                        <div class="added">+ {{ file }}</div>
+                        {% endfor %}
+                        
+                        {% for file in commit.modified %}
+                        <div class="modified">M {{ file }}</div>
+                        {% endfor %}
+                        
+                        {% for file in commit.removed %}
+                        <div class="removed">- {{ file }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if log.deployment_status %}
+                <div class="deployment-info">
+                    <strong>Deployment Status:</strong> {{ log.deployment_status }}
+                    {% if log.deployment_message %}
+                    <br>
+                    <strong>Message:</strong> {{ log.deployment_message }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

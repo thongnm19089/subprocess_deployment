@@ -12,7 +12,9 @@
 
     <div class="container mt-4">
         <h2>Manage Deployments</h2>
-        
+        <div class="mb-3">
+            <a href="{% url 'git-logs' %}" class="btn btn-info">View Git Webhook Logs</a>
+        </div>
         <!-- Flash Messages -->
         {% if messages %}
             {% for message in messages %}
