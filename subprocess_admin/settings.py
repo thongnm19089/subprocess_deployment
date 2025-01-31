@@ -26,17 +26,10 @@ load_dotenv()
 SECRET_KEY = 'django-insecure-wgn%q&5=_-%)$^s$5ds_a_#eyu7%06b6$0gsfw*zupco5wnxzl'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-SECURE_SSL_REDIRECT = True  # Chuyển hướng tất cả traffic sang HTTPS
-SECURE_HSTS_SECONDS = 31536000  # 1 năm
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
 
-# Cookie settings
-SESSION_COOKIE_SECURE = True  # Chỉ gửi cookie qua HTTPS
-CSRF_COOKIE_SECURE = True 
 
 # Application definition
 
