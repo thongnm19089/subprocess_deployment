@@ -1,6 +1,5 @@
 # filepath: /home/thongnm/prj/subprocess/subprocess_admin/subprocess_app/views.py
 from django.http import HttpResponse
-from django.shortcuts import render
 import paramiko
 from dotenv import load_dotenv
 import os
@@ -8,11 +7,119 @@ import logging
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from .models import Deployment, Server
-from django.contrib import messages# Load environment variables from .env file
+from django.contrib import messages
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 import subprocess
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
+import hmac
+import hashlib
+
+@csrf_exempt
+@require_POST
+def git_webhook(request):
+    """
+    Xử lý webhook từ Git khi có push event
+    URL: /git-webhook/
+    """
+    try:
+        # Đọc payload từ webhook
+        payload = json.loads(request.body)
+        
+        # Kiểm tra xem event có phải là push vào master không
+        if is_master_push(payload):
+            # Lấy thông tin repository từ payload
+            repo_name = get_repo_name(payload)
+            
+            # Tìm deployment tương ứng với repository
+            try:
+                deployment = Deployment.objects.get(project_name=repo_name)
+                
+                # Thực hiện deploy
+                response = deploy(request, deployment.id)
+                
+                # Log kết quả
+                logger.info(f"Auto deployment triggered for {repo_name}")
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Deployment triggered for {repo_name}'
+                })
+                
+            except Deployment.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'No deployment configuration found for {repo_name}'
+                }, status=404)
+        
+        return JsonResponse({
+            'status': 'ignored',
+            'message': 'Not a master branch push event'
+        })
+        
+    except Exception as e:
+        logger.error(f"Webhook processing failed: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
+def is_master_push(payload):
+    """
+    Kiểm tra xem webhook event có phải là push vào master không
+    """
+    try:
+        # GitHub
+        if 'ref' in payload:
+            return payload['ref'] == 'refs/heads/master'
+        
+        # GitLab
+        if 'ref' in payload and 'default_branch' in payload['project']:
+            return payload['ref'] == f"refs/heads/{payload['project']['default_branch']}"
+        
+        return False
+    except:
+        return False
+
+def get_repo_name(payload):
+    """
+    Lấy tên repository từ payload
+    """
+    try:
+        # GitHub
+        if 'repository' in payload and 'name' in payload['repository']:
+            return payload['repository']['name']
+        
+        # GitLab
+        if 'project' in payload and 'name' in payload['project']:
+            return payload['project']['name']
+        
+        raise ValueError("Repository name not found in payload")
+    except Exception as e:
+        raise ValueError(f"Failed to extract repository name: {str(e)}")
+
+def verify_github_signature(request):
+    """
+    Xác thực webhook signature từ GitHub
+    """
+    signature = request.headers.get('X-Hub-Signature-256')
+    if not signature:
+        return False
+
+    secret = os.getenv('GITHUB_WEBHOOK_SECRET', '').encode()
+    expected_signature = 'sha256=' + hmac.new(
+        secret,
+        request.body,
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected_signature)
+
+
 
 def terminal_view(request):
     return render(request, 'terminal.html')
