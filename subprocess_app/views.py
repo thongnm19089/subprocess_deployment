@@ -301,7 +301,7 @@ def deploy(request, id):
             # Git Pull
             git_output, git_error = execute_ssh_command(
                 ssh, 
-                f'cd {deployment.project_path} && git pull'
+                f'cd {deployment.project_path}  && git reset --hard && git pull'
             )
             if git_error:
                 raise Exception(f"Git pull failed: {git_error}")
