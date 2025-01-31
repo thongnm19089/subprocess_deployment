@@ -282,6 +282,7 @@ def deploy(request, id):
     deployment = Deployment.objects.get(id=id)
     server = deployment.server
     messages = []
+    venv_path = os.path.join(deployment.project_path, 'venv')  # đường dẫn đến virtual environment
 
     if server:
         try:
@@ -306,6 +307,42 @@ def deploy(request, id):
             
             git_output, git_error = execute_ssh_command(ssh, git_command)
             messages.append(f"Git pull successful:\n{git_output}")
+
+
+            # Install requirements trong virtual environment
+            pip_command = f'''
+                source {venv_path}/bin/activate && \
+                cd {deployment.project_path} && \
+                pip install -r requirements.txt
+            '''
+            pip_output, pip_error = execute_ssh_command(ssh, pip_command)
+            if 'Successfully installed' in pip_output or 'Requirement already satisfied' in pip_output:
+                messages.append("Requirements installed successfully")
+            else:
+                raise Exception(f"Failed to install requirements: {pip_error}")
+
+            # Chạy migrations
+            migrate_command = f'''
+                source {venv_path}/bin/activate && \
+                cd {deployment.project_path} && \
+                python manage.py migrate
+            '''
+            migrate_output, migrate_error = execute_ssh_command(ssh, migrate_command)
+            if 'error' in migrate_error.lower():
+                raise Exception(f"Migration failed: {migrate_error}")
+            messages.append("Database migrations completed successfully")
+
+            # Test runserver
+            test_command = f'''
+                source {venv_path}/bin/activate && \
+                cd {deployment.project_path} && \
+                python manage.py check --deploy
+            '''
+            test_output, test_error = execute_ssh_command(ssh, test_command)
+            if test_error:
+                raise Exception(f"Django check failed: {test_error}")
+            messages.append("Django check passed successfully")
+
 
             # Service Restart
             service_output, service_error = execute_ssh_command(
