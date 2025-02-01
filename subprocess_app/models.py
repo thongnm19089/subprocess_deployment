@@ -1,6 +1,7 @@
 from django.db import models
 from datetime import datetime
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
 
 class GitLog(models.Model):
     STATUS_CHOICES = [
@@ -45,11 +46,18 @@ class Deployment(models.Model):
     project_name = models.CharField(max_length=100)
     project_path = models.CharField(max_length=200)
     service_name = models.CharField(max_length=100)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='inactive')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     server = models.ForeignKey(Server, on_delete=models.CASCADE , null=True , blank=True)
-
+    pass_deploy = models.CharField(max_length=100, null=True, blank=True)
+    def save(self, *args, **kwargs):
+        # Mã hóa password trước khi lưu
+        if self.pass_deploy and not self.pass_deploy.startswith('pbkdf2_sha256'):
+            self.pass_deploy = make_password(self.pass_deploy)
+        super().save(*args, **kwargs)
+    def check_deploy_password(self, raw_password):
+        """Kiểm tra password deployment"""
+        return check_password(raw_password, self.pass_deploy)
     def __str__(self):
         return f"{self.project_name} ({self.service_name})"
 

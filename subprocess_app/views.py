@@ -170,7 +170,6 @@ def get_deployment(request, id):
         'project_name': deployment.project_name,
         'project_path': deployment.project_path,
         'service_name': deployment.service_name,
-        'status': deployment.status,
         'server': deployment.server.id if deployment.server else None,
     })
 
@@ -180,7 +179,12 @@ def update_deployment(request, id):
         deployment.project_name = request.POST.get('project_name')
         deployment.project_path = request.POST.get('project_path')
         deployment.service_name = request.POST.get('service_name')
-        deployment.status = request.POST.get('status')
+        
+        # Xử lý password mới nếu được cung cấp
+        new_password = request.POST.get('deploy_password')
+        if new_password:  # Chỉ cập nhật password nếu có nhập mới
+            deployment.pass_deploy = new_password
+        
         server_id = request.POST.get('server')
         if server_id and server_id != 'none':
             try:
@@ -202,8 +206,8 @@ def manage(request):
         project_name = request.POST.get('project_name')
         project_path = request.POST.get('project_path')
         service_name = request.POST.get('service_name')
-        status = request.POST.get('status')
         server_id = request.POST.get('server')
+        deploy_password = request.POST.get('deploy_password')  # Lấy password từ form
 
         if server_id:
             try:
@@ -218,8 +222,9 @@ def manage(request):
             project_name=project_name,
             project_path=project_path,
             service_name=service_name,
-            status=status,
             server=server,
+            pass_deploy=deploy_password  # Password sẽ tự động được mã hóa khi save
+
         )
         deployment.save()
         messages.success(request, 'Deployment added successfully!')
@@ -284,6 +289,21 @@ def execute_ssh_command(ssh, command, need_sudo=False, password=None):
 
 def deploy(request, id):
     deployment = Deployment.objects.get(id=id)
+
+    # if deployment.pass_deploy:
+    #     deploy_password = request.POST.get('deploy_password')
+    #     if not deploy_password:
+    #         return JsonResponse({
+    #             'status': 'error',
+    #             'message': 'Deploy password is required'
+    #         }, status=403)
+        
+    #     if not deployment.check_deploy_password(deploy_password):
+    #         return JsonResponse({
+    #             'status': 'error',
+    #             'message': 'Invalid deploy password'
+    #         }, status=403)
+
     server = deployment.server
     messages = []
     venv_path = os.path.join(deployment.project_path, 'venv')  # đường dẫn đến virtual environment
