@@ -69,7 +69,8 @@
         const output = document.getElementById('output');
         const input = document.getElementById('input');
         const prompt = document.getElementById('prompt');
-        const ws = new WebSocket('ws://' + window.location.hostname + ':8001/ws/terminal/');
+        // const ws = new WebSocket('ws://' + window.location.hostname + ':8001/ws/terminal/');
+        const ws = new WebSocket('wss://' + window.location.hostname + '/ws/terminal/');
         
         let commandHistory = [];
         let historyIndex = -1;
