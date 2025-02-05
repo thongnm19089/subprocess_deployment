@@ -45,6 +45,9 @@ class Deployment(models.Model):
     
     project_name = models.CharField(max_length=100)
     project_path = models.CharField(max_length=200)
+    webhook_id = models.CharField(max_length=100, null=True, blank=True)
+    webhook_url = models.URLField(max_length=255, null=True, blank=True)
+    github_token = models.CharField(max_length=255, null=True, blank=True)
     service_name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,0 +1,22 @@
+
+<div class="container mt-4">
+    <h2>Select Repository for Deployment</h2>
+    
+    <form method="post" action="{% url 'connect_repository' %}">
+        {% csrf_token %}
+        <input type="hidden" name="deployment_id" value="{{ deployment.id }}">
+        
+        <div class="form-group">
+            <label for="repository">Choose Repository:</label>
+            <select name="repository" id="repository" class="form-control" required>
+                <option value="">Select a repository...</option>
+                {% for repo in repositories %}
+                <option value="{{ repo.full_name }}">{{ repo.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit" class="btn btn-primary mt-3">Connect Repository</button>
+        <a href="{% url 'management' %}" class="btn btn-secondary mt-3">Cancel</a>
+    </form>
+</div>

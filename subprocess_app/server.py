@@ -26,7 +26,7 @@ async def terminal_handler(websocket, path):
 
         await websocket.send(json.dumps({'output': output}))
 
-start_server = websockets.serve(terminal_handler, "localhost", 8001)
+start_server = websockets.serve(terminal_handler, "localhost", 8002)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever() 

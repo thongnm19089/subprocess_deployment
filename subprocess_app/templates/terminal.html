@@ -70,8 +70,12 @@
         const input = document.getElementById('input');
         const prompt = document.getElementById('prompt');
         // const ws = new WebSocket('ws://' + window.location.hostname + ':8001/ws/terminal/');
-        const ws = new WebSocket('wss://' + window.location.hostname + '/ws/terminal/');
-        
+        // const ws = new WebSocket('wss://' + window.location.hostname + '/ws/terminal/');
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsPort = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? ':8002' : '';
+        const ws = new WebSocket(wsProtocol + window.location.hostname + wsPort + '/ws/terminal/');
+
         let commandHistory = [];
         let historyIndex = -1;
 

@@ -7,10 +7,50 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
+    
 </head>
 <body>
     <style>
+.modal_terminal {
+    display: none;
+    position: fixed;
+    z-index: 1000;  /* Tăng z-index để hiển thị trên các phần tử khác */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 118%;
+    max-width: 864px;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.terminal-input {
+    background: transparent;
+    border: none;
+    color: #00ff00;
+    width: 100%;
+    font-family: 'Courier New', monospace;
+    outline: none;
+}
         .password-container {
             position: relative;
         }
@@ -49,7 +89,8 @@
         <button type="button" class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#addDeploymentModal">
             Add New Deployment
         </button>
-
+        <a href="{% url 'server_management' %}" class="btn btn-primary mb-4">Manage Servers</a>
+        <a href="{% url 'terminal' %}" class="btn btn-primary mb-4"> Open terminal on this server </a>
         <!-- Add New Deployment Modal -->
         <div class="modal fade" id="addDeploymentModal" tabindex="-1" aria-labelledby="addDeploymentModalLabel" aria-hidden="true">
             <div class="modal-dialog">
@@ -227,6 +268,7 @@
                             <th>Server</th>
                             <th>Deploy</th>
                             <th>Git Logs</th>
+                            <th>Terminal</th>
                             <th>About</th>
 
                         </tr>
@@ -249,8 +291,29 @@
                                 <a href="{% url 'deploy' deployment.id %}" class="btn btn-success">Deploy</a>
 
                             </td>
+
                             <td>
                                 <a href="{% url 'deployment-git-logs' deployment.id %}" class="btn btn-info btn-sm" data-turbo="false">View Logs</a>                            </td>
+                            </td>
+                            <!-- Trong bảng deployments -->
+                            <td>
+                                {% if deployment.webhook_id %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> Connected to {{ deployment.project_name }}
+                                    </span>
+                                {% else %}
+                                    <a href="{% url 'github_login' deployment.id %}" class="btn btn-sm btn-primary">
+                                        <i class="fab fa-github"></i> Connect GitHub
+                                    </a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-primary btn-sm" 
+                                        onclick="openTerminal('{{ deployment.project_name }}', '{{ deployment.id }}')">
+                                    Open Terminal
+                                </button>
+                            </td>
+
                             <td>
                                 <div class="dropdown">
                                     <h4  type="button" id="dropdownMenuButton{{ deployment.id }}" data-bs-toggle="dropdown" aria-expanded="false">
@@ -264,13 +327,157 @@
                             </td>
                             
                         </tr>
+                      
                         {% endfor %}
                     </tbody>
                 </table>
+                <div id="terminal-modal" class="modal_terminal">
+                    <div class="modal-content">
+                        <span class="close">&times;</span>
+                        <div id="terminal-container"></div>
+                    </div>
+                </div>
+                
             </div>
         </div>
     </div>
     <script>
+function openTerminal(projectName, deploymentId) {
+    const modal = document.getElementById('terminal-modal');
+    const terminalContainer = document.getElementById('terminal-container');
+    const closeBtn = document.getElementsByClassName('close')[0];
+    
+    // Khởi tạo cấu trúc terminal
+    terminalContainer.innerHTML = `
+        <div id="output"></div>
+        <div id="command-line">
+            <span id="prompt"></span>
+            <input type="text" id="input" autofocus>
+        </div>
+    `;
+    
+    const output = document.getElementById('output');
+    const input = document.getElementById('input');
+    const prompt = document.getElementById('prompt');
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Create WebSocket connection
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsPort = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? ':8002' : '';
+    
+    let ws;
+    try {
+        const wsUrl = `${wsProtocol}${window.location.hostname}${wsPort}/ws/terminal/${deploymentId}/`;
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = function() {
+            output.innerHTML += '<div style="color: green;">Connected to terminal...</div>';
+        };
+        
+        ws.onerror = function(e) {
+            output.innerHTML += `<div style="color: red;">
+                Connection error. Please check console for details.<br>
+                State: ${ws.readyState}<br>
+                URL: ${ws.url}
+            </div>`;
+        };
+        
+        ws.onclose = function() {
+            output.innerHTML += '<div>Connection closed</div>';
+        };
+
+        ws.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.output.endsWith('$ ')) {
+                const parts = data.output.split('\n');
+                if (parts.length > 1) {
+                    output.innerHTML += parts.slice(0, -1).join('\n') + '\n';
+                }
+                prompt.textContent = parts[parts.length - 1];
+            } else {
+                output.innerHTML += data.output;
+            }
+            terminalContainer.scrollTop = terminalContainer.scrollHeight;
+            input.focus();
+        };
+
+        // Handle input
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const command = input.value;
+                output.innerHTML += prompt.textContent + command + '\n';
+                ws.send(JSON.stringify({command: command}));
+                input.value = '';
+            }
+        });
+
+        // Focus input when clicking anywhere in terminal
+        terminalContainer.addEventListener('click', () => {
+            input.focus();
+        });
+        
+    } catch (error) {
+        output.innerHTML += `<div style="color: red;">Error creating WebSocket: ${error.message}</div>`;
+    }
+    
+    // CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        #terminal-container {
+            background: black;
+            color: #00ff00;
+            padding: 10px;
+            font-family: monospace;
+            height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word; 
+
+        }
+        #command-line {
+            position: relative;
+            display: flex;
+            align-items: center;
+            top: -51px;
+        }
+        #prompt {
+            color: #00ff00;
+            font-family: monospace;
+        }
+        #input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: #00ff00;
+            font-family: monospace;
+            outline: none;
+            padding: 0;
+            margin-left: 5px;
+        }
+        #output {
+        margin-bottom: 10px;
+        font-family: 'Courier New', monospace;
+        line-height: 1.2; 
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Close modal handlers
+    closeBtn.onclick = function() {
+        modal.style.display = 'none';
+        if (ws) ws.close();
+    }
+    
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+            if (ws) ws.close();
+        }
+    }
+}
+        
         function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     const icon = input.nextElementSibling;
@@ -369,7 +576,6 @@ function validateAndUpdate() {
                     document.getElementById('update_project_name').value = data.project_name;
                     document.getElementById('update_project_path').value = data.project_path;
                     document.getElementById('service_name').value = data.service_name;
-                    document.getElementById('update_status').value = data.status;
                     document.getElementById('update_server').value = data.server || 'none';
 
                     // Set other fields
@@ -405,6 +611,7 @@ function validateAndUpdate() {
                         showConfirmButton: false,
                         timer: 1500
                     }).then(() => {
+                        closeModal();
                         window.location.reload();
             });
                 } else {

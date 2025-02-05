@@ -128,3 +128,28 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# Tăng timeout cho WebSocket
+CHANNEL_SETTINGS = {
+    "HTTP_READ_TIMEOUT": 60,  # seconds
+    "HTTP_CHUNK_SIZE": 8192,
+    "WS_PROTOCOL_TIMEOUT": 20,  # seconds
+}
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://b0f6-123-24-142-95.ngrok-free.app',
+    'http://b0f6-123-24-142-95.ngrok-free.app',
+]
+
+# Nếu bạn cũng cần cho phép các origins khác
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400  # 24 hours in seconds
+SESSION_COOKIE_SECURE = True  # Nếu dùng HTTPS
